@@ -1,0 +1,229 @@
+@page "/usuarios"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+
+@using System.ComponentModel.DataAnnotations
+@using ConsultaACH.Blazor.Modelos
+@using ConsultaACH.Blazor.Servicios
+
+@inject ServicioUsuarios ServicioUsuarios
+
+<PageTitle>Gestión de usuarios | Consulta ACH</PageTitle>
+
+<div class="container-fluid p-4">
+
+    <h2>Gestión de usuarios</h2>
+    <p class="text-muted">
+        Administración de los usuarios del sistema Consulta ACH.
+    </p>
+
+    @if (!string.IsNullOrEmpty(mensaje))
+    {
+        <div class="alert alert-success">@mensaje</div>
+    }
+
+    @if (!string.IsNullOrEmpty(mensajeError))
+    {
+        <div class="alert alert-danger">@mensajeError</div>
+    }
+
+    <div class="card shadow-sm mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Registrar nuevo usuario</h5>
+        </div>
+
+        <div class="card-body">
+
+            <EditForm Model="formulario" OnValidSubmit="CrearUsuario">
+                <DataAnnotationsValidator />
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Nombre completo</label>
+                        <InputText class="form-control" @bind-Value="formulario.NombreCompleto"
+                                   placeholder="Ingrese el nombre completo" />
+                        <ValidationMessage For="@(() => formulario.NombreCompleto)" />
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Nombre de usuario</label>
+                        <InputText class="form-control" @bind-Value="formulario.NombreUsuario"
+                                   placeholder="Ingrese el usuario" />
+                        <ValidationMessage For="@(() => formulario.NombreUsuario)" />
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Correo electrónico</label>
+                        <InputText class="form-control" type="email" @bind-Value="formulario.Correo"
+                                   placeholder="ejemplo@correo.com" />
+                        <ValidationMessage For="@(() => formulario.Correo)" />
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Contraseña</label>
+                        <InputText class="form-control" type="password" @bind-Value="formulario.Contrasena"
+                                   placeholder="Ingrese una contraseña" />
+                        <ValidationMessage For="@(() => formulario.Contrasena)" />
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Rol</label>
+                        <InputSelect class="form-select" @bind-Value="formulario.Rol">
+                            <option value="Administrador">Administrador</option>
+                            <option value="Contador">Contador</option>
+                        </InputSelect>
+                    </div>
+
+                </div>
+
+                <button type="submit" class="btn btn-success" disabled="@guardando">
+                    @if (guardando)
+                    {
+                        <span>Registrando...</span>
+                    }
+                    else
+                    {
+                        <span>
+                            <i class="bi bi-person-plus"></i>
+                            Registrar usuario
+                        </span>
+                    }
+                </button>
+
+            </EditForm>
+
+        </div>
+    </div>
+
+    <div class="card shadow-sm mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Usuarios registrados</h5>
+        </div>
+
+        <div class="card-body">
+
+            @if (usuarios == null)
+            {
+                <p>Cargando usuarios...</p>
+            }
+            else if (usuarios.Count == 0)
+            {
+                <p class="text-muted">No hay usuarios registrados.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Nombre completo</th>
+                                <th>Usuario</th>
+                                <th>Correo electrónico</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var usuario in usuarios)
+                            {
+                                <tr>
+                                    <td>@usuario.NombreCompleto</td>
+                                    <td>@usuario.UserName</td>
+                                    <td>@usuario.Email</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+
+    private IList<Usuario>? usuarios;
+
+    private string mensaje = "";
+    private string mensajeError = "";
+
+    private bool guardando = false;
+
+    private FormularioUsuario formulario = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarUsuarios();
+    }
+
+    private async Task CargarUsuarios()
+    {
+        usuarios = await ServicioUsuarios.ObtenerUsuariosAsync();
+    }
+
+    private async Task CrearUsuario()
+    {
+        mensaje = "";
+        mensajeError = "";
+        guardando = true;
+
+        try
+        {
+            var nuevoUsuario = new Usuario
+            {
+                NombreCompleto = formulario.NombreCompleto,
+                UserName = formulario.NombreUsuario,
+                Email = formulario.Correo
+            };
+
+            var resultado = await ServicioUsuarios.CrearUsuarioAsync(
+                nuevoUsuario,
+                formulario.Contrasena,
+                formulario.Rol
+            );
+
+            if (resultado.Succeeded)
+            {
+                mensaje = "El usuario se registró correctamente.";
+
+                formulario = new FormularioUsuario();
+
+                await CargarUsuarios();
+            }
+            else
+            {
+                mensajeError = string.Join(" ",
+                    resultado.Errors.Select(error => error.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            mensajeError = "Ocurrió un error al registrar el usuario: "
+                           + ex.Message;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    public class FormularioUsuario
+    {
+        [Required(ErrorMessage = "El nombre completo es obligatorio.")]
+        public string NombreCompleto { get; set; } = "";
+
+        [Required(ErrorMessage = "El nombre de usuario es obligatorio.")]
+        public string NombreUsuario { get; set; } = "";
+
+        [Required(ErrorMessage = "El correo electrónico es obligatorio.")]
+        [EmailAddress(ErrorMessage = "Ingrese un correo electrónico válido.")]
+        public string Correo { get; set; } = "";
+
+        [Required(ErrorMessage = "La contraseña es obligatoria.")]
+        [MinLength(8, ErrorMessage = "La contraseña debe tener al menos 8 caracteres.")]
+        public string Contrasena { get; set; } = "";
+
+        public string Rol { get; set; } = "Contador";
+    }
+}

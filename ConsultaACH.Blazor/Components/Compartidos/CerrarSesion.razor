@@ -1,0 +1,53 @@
+@inject NavigationManager Navegacion
+@namespace ConsultaACH.Blazor.Components.Compartidos
+<div>
+    <button type="button" class="nav-link btn btn-link text-white w-100 text-start" @onclick="MostrarConfirmacion">
+        <i class="bi bi-box-arrow-right me-2"></i>
+        Cerrar sesión
+    </button>
+</div>
+
+@if (mostrarModal)
+{
+    <div class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar cierre de sesión</h5>
+                    <button type="button" class="btn-close" @onclick="Cancelar"></button>
+                </div>
+
+                <div class="modal-body">
+                    ¿Está seguro de que desea cerrar sesión?
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Cancelar">
+                        Cancelar
+                    </button>
+
+                    <form method="post" action="/logout" data-enhance="false">
+                        <AntiforgeryToken />
+                        <button type="submit" class="btn btn-danger">
+                            Sí, cerrar sesión
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool mostrarModal = false;
+
+    private void MostrarConfirmacion()
+    {
+        mostrarModal = true;
+    }
+
+    private void Cancelar()
+    {
+        mostrarModal = false;
+    }
+}
