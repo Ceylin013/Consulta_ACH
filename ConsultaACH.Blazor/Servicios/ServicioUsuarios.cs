@@ -16,13 +16,13 @@ public class ServicioUsuarios
         _roleManager = roleManager;
     }
 
-    // Crear un usuario y asignarle un rol
+    //creacion y asignacion del rol a usuario
     public async Task<IdentityResult> CrearUsuarioAsync(
         Usuario usuario,
         string contrasena,
         string nombreRol)
     {
-        // Verificar que el rol exista
+        //verificacion del rol 
         if (!await _roleManager.RoleExistsAsync(nombreRol))
         {
             return IdentityResult.Failed(
@@ -32,7 +32,7 @@ public class ServicioUsuarios
                 });
         }
 
-        // Crear el usuario
+        //crear el usuario
         var resultado = await _userManager.CreateAsync(
             usuario, contrasena);
 
@@ -41,11 +41,11 @@ public class ServicioUsuarios
             return resultado;
         }
 
-        // Asignar el rol al usuario
+        //asignar el rol al usuario
         var resultadoRol = await _userManager.AddToRoleAsync(
             usuario, nombreRol);
 
-        // Si falla la asignación, eliminar el usuario creado
+        //si falla la asignación, eliminar el usuario creado
         if (!resultadoRol.Succeeded)
         {
             await _userManager.DeleteAsync(usuario);
@@ -55,7 +55,7 @@ public class ServicioUsuarios
         return IdentityResult.Success;
     }
 
-    // Crear un rol
+    //crear un rol
     public async Task<IdentityResult> CrearRolAsync(string nombreRol)
     {
         if (await _roleManager.RoleExistsAsync(nombreRol))
@@ -67,7 +67,7 @@ public class ServicioUsuarios
             new IdentityRole(nombreRol));
     }
 
-    // Asignar un rol a un usuario existente
+    //asignar un rol a un usuario existente
     public async Task<IdentityResult> AsignarRolAsync(
         Usuario usuario,
         string nombreRol)
@@ -85,16 +85,98 @@ public class ServicioUsuarios
             usuario, nombreRol);
     }
 
-    // Buscar usuario por nombre
+    //buscar usuario por nombre
     public async Task<Usuario?> BuscarUsuarioAsync(
         string nombreUsuario)
     {
         return await _userManager.FindByNameAsync(nombreUsuario);
     }
 
-    // Obtener todos los usuarios registrados
+    //obtener todos los usuarios registrados
     public async Task<IList<Usuario>> ObtenerUsuariosAsync()
     {
-        return await Task.FromResult(_userManager.Users.ToList());
+        //return await Task.FromResult(_userManager.Users.ToList());
+        return _userManager.Users.ToList();
     }
+
+    //obtener el rol de un usuario
+    public async Task<string> ObtenerRolAsync(Usuario usuario)
+    {
+        var roles = await _userManager.GetRolesAsync(usuario);
+
+        return roles.FirstOrDefault() ?? "Sin rol";
+    }
+
+    //activar o desactivar una cuenta
+    public async Task<IdentityResult> CambiarEstadoAsync(
+        Usuario usuario, bool activo)
+    {
+        usuario.Activo = activo;
+
+        var resultado = await _userManager.UpdateAsync(usuario);
+
+        if (resultado.Succeeded && !activo)
+        {
+            await _userManager.UpdateSecurityStampAsync(usuario);
+        }
+
+        return resultado;
+    }
+
+    //editar información del usuario
+    public async Task<IdentityResult> ActualizarUsuarioAsync(
+        Usuario usuario,
+        string nombreCompleto,
+        string nombreUsuario,
+        string correo)
+    {
+        usuario.NombreCompleto = nombreCompleto;
+        usuario.UserName = nombreUsuario;
+        usuario.Email = correo;
+
+        return await _userManager.UpdateAsync(usuario);
+    }
+
+    //cambiar el rol de un usuario
+    public async Task<IdentityResult> CambiarRolAsync(
+        Usuario usuario, string nuevoRol)
+    {
+        if (!await _roleManager.RoleExistsAsync(nuevoRol))
+        {
+            return IdentityResult.Failed(new IdentityError
+            {
+                Description = "El rol seleccionado no existe."
+            });
+        }
+
+        var rolesActuales = await _userManager.GetRolesAsync(usuario);
+
+        var quitarRoles = await _userManager.RemoveFromRolesAsync(
+            usuario, rolesActuales);
+
+        if (!quitarRoles.Succeeded)
+            return quitarRoles;
+
+        var agregarRol = await _userManager.AddToRoleAsync(
+            usuario, nuevoRol);
+
+        if (!agregarRol.Succeeded)
+        {
+            await _userManager.AddToRolesAsync(usuario, rolesActuales);
+            return agregarRol;
+        }
+
+        return IdentityResult.Success;
+    }
+
+    //restablecer contraseña
+    public async Task<IdentityResult> RestablecerContrasenaAsync(
+        Usuario usuario, string nuevaContrasena)
+    {
+        var token = await _userManager.GeneratePasswordResetTokenAsync(usuario);
+
+        return await _userManager.ResetPasswordAsync(
+            usuario, token, nuevaContrasena);
+    }
+
 }

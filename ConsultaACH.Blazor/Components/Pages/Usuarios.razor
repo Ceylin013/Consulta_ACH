@@ -4,14 +4,16 @@
 @using System.ComponentModel.DataAnnotations
 @using ConsultaACH.Blazor.Modelos
 @using ConsultaACH.Blazor.Servicios
+@using Microsoft.AspNetCore.Components.Authorization
 
 @inject ServicioUsuarios ServicioUsuarios
+@inject AuthenticationStateProvider EstadoAutenticacion
 
 <PageTitle>Gestión de usuarios | Consulta ACH</PageTitle>
 
 <div class="container-fluid p-4">
 
-    <h2>Gestión de usuarios</h2>
+    <h2>Gestión De Usuarios</h2>
     <p class="text-muted">
         Administración de los usuarios del sistema Consulta ACH.
     </p>
@@ -26,13 +28,13 @@
         <div class="alert alert-danger">@mensajeError</div>
     }
 
+    <!-- registrar usuario -->
     <div class="card shadow-sm mt-4">
         <div class="card-header">
-            <h5 class="mb-0">Registrar nuevo usuario</h5>
+            <h5 class="mb-0">Registrar Nuevo Usuario</h5>
         </div>
 
         <div class="card-body">
-
             <EditForm Model="formulario" OnValidSubmit="CrearUsuario">
                 <DataAnnotationsValidator />
 
@@ -41,21 +43,21 @@
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Nombre completo</label>
                         <InputText class="form-control" @bind-Value="formulario.NombreCompleto"
-                                   placeholder="Ingrese el nombre completo" />
+                                   placeholder="Ej. Juan Perez Ruiz" />
                         <ValidationMessage For="@(() => formulario.NombreCompleto)" />
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Nombre de usuario</label>
                         <InputText class="form-control" @bind-Value="formulario.NombreUsuario"
-                                   placeholder="Ingrese el usuario" />
+                                   placeholder="Ej. Juan Perez" />
                         <ValidationMessage For="@(() => formulario.NombreUsuario)" />
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Correo electrónico</label>
                         <InputText class="form-control" type="email" @bind-Value="formulario.Correo"
-                                   placeholder="ejemplo@correo.com" />
+                                   placeholder="Ej. juan@gmail.com" />
                         <ValidationMessage For="@(() => formulario.Correo)" />
                     </div>
 
@@ -89,15 +91,14 @@
                         </span>
                     }
                 </button>
-
             </EditForm>
-
         </div>
     </div>
 
+    <!-- tabla usuarios -->
     <div class="card shadow-sm mt-4">
         <div class="card-header">
-            <h5 class="mb-0">Usuarios registrados</h5>
+            <h5 class="mb-0">Usuarios Registrados</h5>
         </div>
 
         <div class="card-body">
@@ -113,12 +114,16 @@
             else
             {
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover">
+                    <table class="table table-striped table-hover align-middle">
+
                         <thead>
                             <tr>
                                 <th>Nombre completo</th>
                                 <th>Usuario</th>
                                 <th>Correo electrónico</th>
+                                <th>Rol</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
 
@@ -129,9 +134,60 @@
                                     <td>@usuario.NombreCompleto</td>
                                     <td>@usuario.UserName</td>
                                     <td>@usuario.Email</td>
+
+                                    <td>
+                                        @rolesUsuarios.GetValueOrDefault(usuario.Id, "Cargando...")
+                                    </td>
+
+                                    <td>
+                                        @if (usuario.Activo)
+                                        {
+                                            <span class="badge bg-success">Activo</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">Inactivo</span>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        <div class="d-flex flex-wrap gap-2">
+
+                                            <button class="btn btn-sm btn-primary" @onclick="() => IniciarEdicion(usuario)">
+                                                <i class="bi bi-pencil"></i>
+                                                Editar
+                                            </button>
+
+                                            <button class="btn btn-sm btn-warning"
+                                                    @onclick="() => IniciarRestablecimiento(usuario)">
+                                                <i class="bi bi-key"></i>
+                                                Contraseña
+                                            </button>
+
+                                            @if (usuario.Activo)
+                                            {
+                                                <button class="btn btn-sm btn-danger"
+                                                        disabled="@(usuario.UserName == usuarioActual)"
+                                                        @onclick="() => CambiarEstado(usuario, false)">
+                                                    <i class="bi bi-person-x"></i>
+                                                    Desactivar
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-success"
+                                                        @onclick="() => CambiarEstado(usuario, true)">
+                                                    <i class="bi bi-person-check"></i>
+                                                    Activar
+                                                </button>
+                                            }
+
+                                        </div>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
+
                     </table>
                 </div>
             }
@@ -139,29 +195,155 @@
         </div>
     </div>
 
+    <!-- formulario editar usuario -->
+    @if (usuarioEnEdicion != null)
+    {
+        <div class="card shadow-sm mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Editar usuario: @usuarioEnEdicion.UserName</h5>
+            </div>
+
+            <div class="card-body">
+                <EditForm Model="formularioEdicion" OnValidSubmit="GuardarEdicion">
+                    <DataAnnotationsValidator />
+
+                    <div class="row">
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nombre completo</label>
+                            <InputText class="form-control" @bind-Value="formularioEdicion.NombreCompleto" />
+                            <ValidationMessage For="@(() => formularioEdicion.NombreCompleto)" />
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nombre de usuario</label>
+                            <InputText class="form-control" @bind-Value="formularioEdicion.NombreUsuario" />
+                            <ValidationMessage For="@(() => formularioEdicion.NombreUsuario)" />
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Correo electrónico</label>
+                            <InputText class="form-control" type="email" @bind-Value="formularioEdicion.Correo" />
+                            <ValidationMessage For="@(() => formularioEdicion.Correo)" />
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Rol</label>
+
+                            <InputSelect class="form-select" @bind-Value="formularioEdicion.Rol"
+                                         disabled="@(usuarioEnEdicion.UserName == usuarioActual)">
+                                <option value="Administrador">Administrador</option>
+                                <option value="Contador">Contador</option>
+                            </InputSelect>
+
+                            @if (usuarioEnEdicion.UserName == usuarioActual)
+                            {
+                                <small class="text-muted">
+                                    No puedes cambiar tu propio rol.
+                                </small>
+                            }
+                        </div>
+
+                    </div>
+
+                    <button type="submit" class="btn btn-success" disabled="@guardando">
+                        Guardar cambios
+                    </button>
+
+                    <button type="button" class="btn btn-secondary ms-2" @onclick="CancelarEdicion">
+                        Cancelar
+                    </button>
+
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <!-- restablecer la contraseña -->
+    @if (usuarioContrasena != null)
+    {
+        <div class="card shadow-sm mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    Restablecer contraseña: @usuarioContrasena.UserName
+                </h5>
+            </div>
+
+            <div class="card-body">
+                <EditForm Model="formularioContrasena" OnValidSubmit="GuardarContrasena">
+
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label">Nueva contraseña</label>
+                        <InputText class="form-control" type="password" @bind-Value="formularioContrasena.Contrasena" />
+                        <ValidationMessage For="@(() => formularioContrasena.Contrasena)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Confirmar contraseña</label>
+                        <InputText class="form-control" type="password"
+                                   @bind-Value="formularioContrasena.ConfirmarContrasena" />
+                        <ValidationMessage For="@(() => formularioContrasena.ConfirmarContrasena)" />
+                    </div>
+
+                    <button type="submit" class="btn btn-success" disabled="@guardando">
+                        Guardar contraseña
+                    </button>
+
+                    <button type="button" class="btn btn-secondary ms-2" @onclick="CancelarContrasena">
+                        Cancelar
+                    </button>
+
+                </EditForm>
+            </div>
+        </div>
+    }
+
 </div>
 
 @code {
 
     private IList<Usuario>? usuarios;
 
+    private Dictionary<string, string> rolesUsuarios = new();
+
     private string mensaje = "";
     private string mensajeError = "";
 
+    private string? usuarioActual;
+
     private bool guardando = false;
 
+    private Usuario? usuarioEnEdicion;
+    private Usuario? usuarioContrasena;
+
     private FormularioUsuario formulario = new();
+    private FormularioEdicionUsuario formularioEdicion = new();
+    private FormularioContrasenaUsuario formularioContrasena = new();
 
     protected override async Task OnInitializedAsync()
     {
+        var estado = await EstadoAutenticacion.GetAuthenticationStateAsync();
+        usuarioActual = estado.User.Identity?.Name;
+
         await CargarUsuarios();
     }
 
     private async Task CargarUsuarios()
     {
         usuarios = await ServicioUsuarios.ObtenerUsuariosAsync();
+
+        rolesUsuarios.Clear();
+
+        foreach (var usuario in usuarios)
+        {
+            rolesUsuarios[usuario.Id] =
+                await ServicioUsuarios.ObtenerRolAsync(usuario);
+        }
     }
 
+    //registrar usuario
     private async Task CrearUsuario()
     {
         mensaje = "";
@@ -174,7 +356,8 @@
             {
                 NombreCompleto = formulario.NombreCompleto,
                 UserName = formulario.NombreUsuario,
-                Email = formulario.Correo
+                Email = formulario.Correo,
+                Activo = true
             };
 
             var resultado = await ServicioUsuarios.CrearUsuarioAsync(
@@ -186,9 +369,7 @@
             if (resultado.Succeeded)
             {
                 mensaje = "El usuario se registró correctamente.";
-
                 formulario = new FormularioUsuario();
-
                 await CargarUsuarios();
             }
             else
@@ -199,14 +380,193 @@
         }
         catch (Exception ex)
         {
-            mensajeError = "Ocurrió un error al registrar el usuario: "
-                           + ex.Message;
+            mensajeError = "Error al registrar: " + ex.Message;
         }
         finally
         {
             guardando = false;
         }
     }
+
+    //editar
+    private void IniciarEdicion(Usuario usuario)
+    {
+        mensaje = "";
+        mensajeError = "";
+
+        usuarioEnEdicion = usuario;
+
+        formularioEdicion = new FormularioEdicionUsuario
+        {
+            NombreCompleto = usuario.NombreCompleto ?? "",
+            NombreUsuario = usuario.UserName ?? "",
+            Correo = usuario.Email ?? "",
+            Rol = rolesUsuarios.GetValueOrDefault(usuario.Id, "Contador")
+        };
+
+        usuarioContrasena = null;
+    }
+
+    //guardar edicion
+    private async Task GuardarEdicion()
+    {
+        if (usuarioEnEdicion == null) return;
+
+        mensaje = "";
+        mensajeError = "";
+        guardando = true;
+
+        try
+        {
+            var resultado = await ServicioUsuarios.ActualizarUsuarioAsync(
+                usuarioEnEdicion,
+                formularioEdicion.NombreCompleto,
+                formularioEdicion.NombreUsuario,
+                formularioEdicion.Correo
+            );
+
+            if (!resultado.Succeeded)
+            {
+                mensajeError = string.Join(" ",
+                    resultado.Errors.Select(e => e.Description));
+                return;
+            }
+
+            if (usuarioEnEdicion.UserName != usuarioActual)
+            {
+                var rolActual = rolesUsuarios.GetValueOrDefault(
+                    usuarioEnEdicion.Id, "");
+
+                if (rolActual != formularioEdicion.Rol)
+                {
+                    var resultadoRol = await ServicioUsuarios.CambiarRolAsync(
+                        usuarioEnEdicion,
+                        formularioEdicion.Rol
+                    );
+
+                    if (!resultadoRol.Succeeded)
+                    {
+                        mensajeError = string.Join(" ",
+                            resultadoRol.Errors.Select(e => e.Description));
+                        return;
+                    }
+                }
+            }
+
+            mensaje = "Los datos del usuario se actualizaron correctamente.";
+
+            usuarioEnEdicion = null;
+
+            await CargarUsuarios();
+        }
+        catch (Exception ex)
+        {
+            mensajeError = "Error al actualizar: " + ex.Message;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void CancelarEdicion()
+    {
+        usuarioEnEdicion = null;
+    }
+
+    //activar y desactivar
+    private async Task CambiarEstado(Usuario usuario, bool activo)
+    {
+        mensaje = "";
+        mensajeError = "";
+
+        if (usuario.UserName == usuarioActual && !activo)
+        {
+            mensajeError = "No puedes desactivar tu propia cuenta.";
+            return;
+        }
+
+        var resultado = await ServicioUsuarios.CambiarEstadoAsync(
+            usuario, activo);
+
+        if (resultado.Succeeded)
+        {
+            mensaje = activo
+                ? "La cuenta se activó correctamente."
+                : "La cuenta se desactivó correctamente.";
+
+            await CargarUsuarios();
+        }
+        else
+        {
+            mensajeError = string.Join(" ",
+                resultado.Errors.Select(e => e.Description));
+        }
+    }
+
+    //abrir restablecimiento
+    private void IniciarRestablecimiento(Usuario usuario)
+    {
+        mensaje = "";
+        mensajeError = "";
+
+        usuarioContrasena = usuario;
+        formularioContrasena = new FormularioContrasenaUsuario();
+
+        usuarioEnEdicion = null;
+    }
+
+    //Guardar contraseña nueva
+    private async Task GuardarContrasena()
+    {
+        if (usuarioContrasena == null) return;
+
+        mensaje = "";
+        mensajeError = "";
+        guardando = true;
+
+        try
+        {
+            if (formularioContrasena.Contrasena !=
+                formularioContrasena.ConfirmarContrasena)
+            {
+                mensajeError = "Las contraseñas no coinciden.";
+                return;
+            }
+
+            var resultado = await ServicioUsuarios.RestablecerContrasenaAsync(
+                usuarioContrasena,
+                formularioContrasena.Contrasena
+            );
+
+            if (resultado.Succeeded)
+            {
+                mensaje = "La contraseña se restableció correctamente.";
+                usuarioContrasena = null;
+                formularioContrasena = new FormularioContrasenaUsuario();
+            }
+            else
+            {
+                mensajeError = string.Join(" ",
+                    resultado.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            mensajeError = "Error al restablecer contraseña: " + ex.Message;
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void CancelarContrasena()
+    {
+        usuarioContrasena = null;
+    }
+
+    //formularios
 
     public class FormularioUsuario
     {
@@ -217,13 +577,38 @@
         public string NombreUsuario { get; set; } = "";
 
         [Required(ErrorMessage = "El correo electrónico es obligatorio.")]
-        [EmailAddress(ErrorMessage = "Ingrese un correo electrónico válido.")]
+        [EmailAddress(ErrorMessage = "Ingrese un correo válido.")]
         public string Correo { get; set; } = "";
 
         [Required(ErrorMessage = "La contraseña es obligatoria.")]
-        [MinLength(8, ErrorMessage = "La contraseña debe tener al menos 8 caracteres.")]
+        [MinLength(8, ErrorMessage = "Mínimo 8 caracteres.")]
         public string Contrasena { get; set; } = "";
 
         public string Rol { get; set; } = "Contador";
+    }
+
+    public class FormularioEdicionUsuario
+    {
+        [Required(ErrorMessage = "El nombre completo es obligatorio.")]
+        public string NombreCompleto { get; set; } = "";
+
+        [Required(ErrorMessage = "El usuario es obligatorio.")]
+        public string NombreUsuario { get; set; } = "";
+
+        [Required(ErrorMessage = "El correo es obligatorio.")]
+        [EmailAddress(ErrorMessage = "Ingrese un correo válido.")]
+        public string Correo { get; set; } = "";
+
+        public string Rol { get; set; } = "Contador";
+    }
+
+    public class FormularioContrasenaUsuario
+    {
+        [Required(ErrorMessage = "La contraseña es obligatoria.")]
+        [MinLength(8, ErrorMessage = "Mínimo 8 caracteres.")]
+        public string Contrasena { get; set; } = "";
+
+        [Required(ErrorMessage = "Confirme la contraseña.")]
+        public string ConfirmarContrasena { get; set; } = "";
     }
 }

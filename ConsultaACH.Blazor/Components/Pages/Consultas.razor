@@ -1,12 +1,760 @@
 @page "/consultas"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
-<PageTitle> Consulta | Consulta ACH</PageTitle>
+@using ConsultaACH.Blazor.Modelos
+@inject ConsultaACH.Blazor.Servicios.ServicioTransaccionesACH ServicioACH
+@inject IJSRuntime JS
+
+<PageTitle>Consultas | Consulta ACH</PageTitle>
 
 <div class="container-fluid p-4">
-    <h2>Bienvenido a Consulta ACH</h2>
 
-    <p>
-        Has iniciado sesión correctamente a consultas.
-    </p>
+    <h2>Consultas ACH </h2>
+    <p>Consulta las transacciones ACH registradas en el sistema.</p>
+
+    <div class="card shadow-sm mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Filtros de búsqueda</h5>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+
+                <div class="col-md-4">
+                    <label class="form-label">Fecha Inicial</label>
+                    <InputDate class="form-control" @bind-Value="FechaInicial" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Fecha Final</label>
+                    <InputDate class="form-control" @bind-Value="FechaFinal" />
+                </div>
+
+                <div class="col-md-4 d-flex align-items-end gap-2 flex-wrap">
+                    <button class="btn btn-success" @onclick="Buscar">
+                        Buscar
+                    </button>
+
+                    <button class="btn btn-secondary" @onclick="Limpiar">
+                        <i class="bi bi-eraser me-1"></i>
+                        Limpiar
+                    </button>
+
+                    <button class="btn btn-success" @onclick="Exportar" disabled="@Exportando">
+
+                        @if (Exportando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <span>Generando reporte...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-file-earmark-excel me-1"></i>
+                            <span>Exportar Excel</span>
+                        }
+
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Mensaje))
+    {
+        <div class="alert alert-info mt-3">
+            @Mensaje
+        </div>
+    }
+
+    <div class="card shadow-sm mt-4" style="width:100%; max-width:100%; min-width:0; overflow:hidden;">
+        <div class="card-header">
+            <h5 class="mb-0">Resultados de la consulta</h5>
+        </div>
+
+        <div class="card-body" style="width:100%; min-width:0; max-width:100%; overflow:hidden;">
+            <p>Registros encontrados: @TransaccionesFiltradas.Count</p>
+
+            <div style="display:block; width:100%; max-width:100%; min-width:0; overflow-x:auto; overflow-y:hidden;">
+                <table class="table table-bordered table-hover"
+                       style="@(MostrarTodasLasColumnas ? "width:2200px; min-width:2200px; white-space:nowrap;" : "width:100%;")">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 60px;">
+                                <div class="position-relative">
+                                    <button type="button" class="btn btn-sm btn-light border"
+                                            title="Opciones de columnas"
+                                            @onclick="() => MostrarMenuColumnas = !MostrarMenuColumnas">
+                                        ⋮
+                                    </button>
+
+                                    @if (MostrarMenuColumnas)
+                                    {
+                                        <div class="border rounded bg-white shadow p-2"
+                                             style="position:absolute; top:100%; left:0; z-index:1100; width:150px;">
+
+                                            <button type="button" class="btn btn-sm btn-light w-100 text-start"
+                                                    @onclick="AlternarVisualizacion">
+                                                @(MostrarTodasLasColumnas ? "Ocultar columnas" : "Visualizar")
+                                            </button>
+
+                                        </div>
+                                    }
+                                </div>
+                            </th>
+                            <th>
+                                <div class="d-flex align-items-center gap-2">Tipo transacción
+                                    @FiltroColumna("TipoTransaccion")
+                                </div>
+                            </th>
+                            <th>
+                                <div class="d-flex align-items-center gap-2">Tipo mensaje
+                                    @FiltroColumna("TipoMensaje")
+                                </div>
+                            </th>
+                            <th>
+                                <div class="d-flex align-items-center gap-2">
+                                    Fecha de procesamiento
+                                    @FiltroColumna("Fecha")
+                                </div>
+                            </th>
+
+                            <th>
+                                <div class="d-flex align-items-center gap-2">
+                                    Banco destino
+                                    @FiltroColumna("Banco")
+                                </div>
+                            </th>
+                            <th>
+                                <div class="d-flex align-items-center gap-2">ID banco receptor
+                                    @FiltroColumna("IdBancoReceptor")
+                                </div>
+                            </th>
+                            <th>
+                                <div class="d-flex align-items-center gap-2">Tipo cuenta @FiltroColumna("TipoCuenta")
+                                </div>
+                            </th>
+
+                            @if (MostrarTodasLasColumnas)
+                            {
+
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">Descripción tipo cuenta
+                                        @FiltroColumna("DescripcionTipoCuenta")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Cuenta origen
+                                        @FiltroColumna("Origen")
+                                    </div>
+                                </th>
+
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Tipo cuenta destino
+                                        @FiltroColumna("TipoCuentaDestino")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Descripción tipo cuenta destino
+                                        @FiltroColumna("DescripcionTipoCuentaDestino")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Cuenta destino
+                                        @FiltroColumna("Destino")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Código moneda
+                                        @FiltroColumna("CodigoMoneda")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Monto
+                                        @FiltroColumna("Monto")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Monto débito core bancario
+                                        @FiltroColumna("MontoDebitoCoreBancario")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Monto crédito core bancario
+                                        @FiltroColumna("MontoCreditoCoreBancario")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Tipo cambio core bancario
+                                        @FiltroColumna("TipoCambioCoreBancario")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Código motivo
+                                        @FiltroColumna("CodigoMotivo")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Resultados
+                                        @FiltroColumna("Resultados")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Estado
+                                        @FiltroColumna("EstadoOriginal")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Descripción Estado
+                                        @FiltroColumna("Estado")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        ID instrucción
+                                        @FiltroColumna("IdInstruccion")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        ID mensaje
+                                        @FiltroColumna("IdMensaje")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        ID transacción
+                                        @FiltroColumna("IdTransaccion")
+                                    </div>
+                                </th>
+                                <th>
+                                    <div class="d-flex align-items-center gap-2">
+                                        Ticket ACH
+                                        @FiltroColumna("TicketAch")
+                                    </div>
+                                </th>
+                            }
+
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var transaccion in TransaccionesPaginadas)
+                        {
+                            <tr>
+                                <td></td>
+                                <td>@transaccion.TipoTransaccion</td>
+                                <td>@transaccion.TipoMensaje</td>
+                                <td>@transaccion.FechaHoraProcesamiento?.ToString("dd/MM/yyyy")</td>
+                                <td>@transaccion.NombreBanco</td>
+                                <td>@transaccion.IdBancoReceptor</td>
+                                <td>@transaccion.TipoCuenta</td>
+
+                                @if (MostrarTodasLasColumnas)
+                                {
+                                    <td>@transaccion.DescripcionTipoCuenta</td>
+                                    <td>@transaccion.CuentaOrigen</td>
+                                    <td>@transaccion.TipoCuentaDestino</td>
+                                    <td>@transaccion.DescripcionTipoCuentaDestino</td>
+                                    <td>@transaccion.CuentaDestino</td>
+                                    <td>@transaccion.CodigoMoneda</td>
+                                    <td>@transaccion.Monto?.ToString("N2")</td>
+                                    <td>@transaccion.MontoDebitoCoreBancario?.ToString("N2")</td>
+                                    <td>@transaccion.MontoCreditoCoreBancario?.ToString("N2")</td>
+                                    <td>@transaccion.TipoCambioCoreBancario?.ToString("N4")</td>
+                                    <td>@transaccion.CodigoMotivo</td>
+                                    <td>@transaccion.Resultados</td>
+                                    <td>@transaccion.Estado</td>
+                                    <td>@transaccion.DescripcionEstado</td>
+                                    <td>@transaccion.IdInstruccion</td>
+                                    <td>@transaccion.IdMensaje</td>
+                                    <td>@transaccion.IdTransaccion</td>
+                                    <td>@transaccion.TicketAch</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mt-3">
+
+                <div class="d-flex align-items-center gap-2">
+                    <label>Mostrar:</label>
+
+                    <select class="form-select form-select-sm" style="width:90px;" value="@RegistrosPorPagina"
+                            @onchange="CambiarCantidadRegistros">
+
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+
+                    </select>
+
+                    <span>registros por página</span>
+                </div>
+
+                <div class="d-flex align-items-center gap-1">
+
+                    <button class="btn btn-sm btn-outline-success" disabled="@(PaginaActual == 1)"
+                            @onclick="() => CambiarPagina(PaginaActual - 1)">
+                        Anterior
+                    </button>
+
+                    @for (int i = 1; i <= PaginasTotales; i++)
+                    {
+                        var pagina = i;
+
+                        <button class="btn btn-sm @(PaginaActual == pagina ? "btn-success" : "btn-outline-success")"
+                                @onclick="() => CambiarPagina(pagina)">
+                            @pagina
+                        </button>
+                    }
+
+                    <button class="btn btn-sm btn-outline-success" disabled="@(PaginaActual >= PaginasTotales)"
+                            @onclick="() => CambiarPagina(PaginaActual + 1)">
+                        Siguiente
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
 </div>
+
+@code {
+    private DateTime? FechaInicial;
+    private DateTime? FechaFinal;
+
+    private List<TransaccionACH> Transacciones = new();
+
+    private string Mensaje = "";
+    private bool Exportando = false;
+
+    //valores cada filtro
+    private Dictionary<string, HashSet<string>> Filtros = new();
+
+    //valores únicos de cada columna
+    private List<string> ObtenerValores(string campo)
+    {
+        return Transacciones.Select(t => campo switch
+        {
+            "TipoTransaccion" => t.TipoTransaccion ?? "",
+            "TipoMensaje" => t.TipoMensaje ?? "",
+            "Fecha" => t.FechaHoraProcesamiento?.ToString("dd/MM/yyyy") ?? "",
+            "Banco" => t.NombreBanco ?? "",
+            "IdBancoReceptor" => t.IdBancoReceptor ?? "",
+            "TipoCuenta" => t.TipoCuenta ?? "",
+            "DescripcionTipoCuenta" => t.DescripcionTipoCuenta ?? "",
+            "Origen" => t.CuentaOrigen ?? "",
+            "TipoCuentaDestino" => t.TipoCuentaDestino ?? "",
+            "DescripcionTipoCuentaDestino" => t.DescripcionTipoCuentaDestino ?? "",
+            "Destino" => t.CuentaDestino ?? "",
+            "CodigoMoneda" => t.CodigoMoneda ?? "",
+            "Monto" => t.Monto?.ToString("N2") ?? "",
+            "MontoDebitoCoreBancario" => t.MontoDebitoCoreBancario?.ToString("N2") ?? "",
+            "MontoCreditoCoreBancario" => t.MontoCreditoCoreBancario?.ToString("N2") ?? "",
+            "TipoCambioCoreBancario" => t.TipoCambioCoreBancario?.ToString("N4") ?? "",
+            "CodigoMotivo" => t.CodigoMotivo ?? "",
+            "Resultados" => t.Resultados ?? "",
+            "EstadoOriginal" => t.Estado ?? "",
+            "Estado" => t.DescripcionEstado ?? "",
+            "IdInstruccion" => t.IdInstruccion ?? "",
+            "IdMensaje" => t.IdMensaje ?? "",
+            "IdTransaccion" => t.IdTransaccion ?? "",
+            "TicketAch" => t.TicketAch ?? "",
+            _ => ""
+        })
+        .Distinct()
+        .OrderBy(v => v)
+        .ToList();
+    }
+
+    private List<string> ObtenerValoresFiltrados(string campo)
+    {
+        var valores = ObtenerValores(campo);
+
+        if (!BusquedasFiltro.ContainsKey(campo) ||
+            string.IsNullOrWhiteSpace(BusquedasFiltro[campo]))
+        {
+            return valores;
+        }
+
+        return valores
+            .Where(v => v.Contains(
+                BusquedasFiltro[campo],
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private List<TransaccionACH> TransaccionesFiltradas =>
+    Transacciones.Where(t =>
+    {
+        var valores = new Dictionary<string, string>
+        {
+            ["Fecha"] = t.FechaHoraProcesamiento?.ToString("dd/MM/yyyy") ?? "",
+            ["Banco"] = t.NombreBanco ?? "",
+            ["Origen"] = t.CuentaOrigen ?? "",
+            ["Destino"] = t.CuentaDestino ?? "",
+            ["Monto"] = t.Monto?.ToString("N2") ?? "",
+            ["Estado"] = t.DescripcionEstado ?? "",
+
+            ["Id"] = t.Id.ToString(),
+            ["TipoTransaccion"] = t.TipoTransaccion ?? "",
+            ["TipoMensaje"] = t.TipoMensaje ?? "",
+            ["IdBancoReceptor"] = t.IdBancoReceptor ?? "",
+            ["TipoCuenta"] = t.TipoCuenta ?? "",
+            ["DescripcionTipoCuenta"] = t.DescripcionTipoCuenta ?? "",
+            ["TipoCuentaDestino"] = t.TipoCuentaDestino ?? "",
+            ["DescripcionTipoCuentaDestino"] = t.DescripcionTipoCuentaDestino ?? "",
+            ["CodigoMoneda"] = t.CodigoMoneda ?? "",
+            ["MontoDebitoCoreBancario"] = t.MontoDebitoCoreBancario?.ToString("N2") ?? "",
+            ["MontoCreditoCoreBancario"] = t.MontoCreditoCoreBancario?.ToString("N2") ?? "",
+            ["TipoCambioCoreBancario"] = t.TipoCambioCoreBancario?.ToString("N4") ?? "",
+            ["CodigoMotivo"] = t.CodigoMotivo ?? "",
+            ["Resultados"] = t.Resultados ?? "",
+            ["EstadoOriginal"] = t.Estado ?? "",
+            ["IdInstruccion"] = t.IdInstruccion ?? "",
+            ["IdMensaje"] = t.IdMensaje ?? "",
+            ["IdTransaccion"] = t.IdTransaccion ?? "",
+            ["TicketAch"] = t.TicketAch ?? ""
+        };
+
+        return valores.All(v =>
+            !Filtros.ContainsKey(v.Key) ||
+            Filtros[v.Key].Contains(v.Value));
+    }).ToList();
+
+    private string? FiltroAbierto;
+    private Dictionary<string, HashSet<string>> SeleccionTemporal = new();
+    private Dictionary<string, string> BusquedasFiltro = new();
+    
+    private bool MostrarMenuColumnas = false;
+    private bool MostrarTodasLasColumnas = false;
+
+    //control paginacion
+    private int PaginaActual = 1;
+    private int RegistrosPorPagina = 10;
+
+    //total de paginas
+    private int PaginasTotales =>
+        Math.Max(1, (int)Math.Ceiling(
+            (double)TransaccionesFiltradas.Count / RegistrosPorPagina));
+
+
+    private List<TransaccionACH> TransaccionesPaginadas =>
+        TransaccionesFiltradas
+            .Skip((PaginaActual - 1) * RegistrosPorPagina)
+            .Take(RegistrosPorPagina)
+            .ToList();
+
+    private void CambiarPagina(int pagina)
+    {
+        if (pagina >= 1 && pagina <= PaginasTotales)
+        {
+            PaginaActual = pagina;
+        }
+    }
+
+    
+    private void CambiarCantidadRegistros(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int cantidad))
+        {
+            RegistrosPorPagina = cantidad;
+            PaginaActual = 1;
+        }
+    }
+
+    private void AlternarVisualizacion()
+    {
+        MostrarTodasLasColumnas = !MostrarTodasLasColumnas;
+        MostrarMenuColumnas = false;
+    }
+    private void SeleccionarTodos(string campo, ChangeEventArgs e)
+    {
+        var valoresVisibles = ObtenerValoresFiltrados(campo);
+
+        if (e.Value is bool seleccionado && seleccionado)
+        {
+            foreach (var valor in valoresVisibles)
+            {
+                SeleccionTemporal[campo].Add(valor);
+            }
+        }
+        else
+        {
+            foreach (var valor in valoresVisibles)
+            {
+                SeleccionTemporal[campo].Remove(valor);
+            }
+        }
+    }
+
+    private void AlternarFiltro(string campo)
+    {
+        if (!BusquedasFiltro.ContainsKey(campo))
+        {
+            BusquedasFiltro[campo] = "";
+        }
+        if (FiltroAbierto == campo)
+        {
+            FiltroAbierto = null;
+            return;
+        }
+
+        var valores = ObtenerValores(campo);
+
+        if (Filtros.ContainsKey(campo))
+        {
+            SeleccionTemporal[campo] = new HashSet<string>(Filtros[campo]);
+        }
+        else
+        {
+            SeleccionTemporal[campo] = new HashSet<string>(valores);
+        }
+
+        FiltroAbierto = campo;
+    }
+
+    private void CambiarSeleccionTemporal(string campo, string valor, ChangeEventArgs e)
+    {
+        if (!SeleccionTemporal.ContainsKey(campo))
+        {
+            SeleccionTemporal[campo] = new HashSet<string>();
+        }
+
+        if (e.Value is bool seleccionado && seleccionado)
+        {
+            SeleccionTemporal[campo].Add(valor);
+        }
+        else
+        {
+            SeleccionTemporal[campo].Remove(valor);
+        }
+    }
+
+    private void AceptarFiltro(string campo)
+    {
+        var valores = ObtenerValores(campo);
+        var seleccionados = SeleccionTemporal[campo];
+
+        if (seleccionados.Count == valores.Count)
+        {
+            Filtros.Remove(campo);
+        }
+        else
+        {
+            Filtros[campo] = new HashSet<string>(seleccionados);
+        }
+        PaginaActual = 1;
+        FiltroAbierto = null;
+    }
+
+    private void CancelarFiltro()
+    {
+        FiltroAbierto = null;
+    }
+
+    private RenderFragment FiltroColumna(string campo) => @<div class="d-inline-block position-relative">
+
+        <button type="button" class="btn btn-sm border @(Filtros.ContainsKey(campo) ? "btn-success" : "btn-light")"
+                title="@(Filtros.ContainsKey(campo) ? "Filtro aplicado" : "Filtrar columna")"
+                @onclick="() => AlternarFiltro(campo)">
+
+            @if (Filtros.ContainsKey(campo))
+            {
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="black">
+                    <path d="M1.5 2h13L9 7.5V13l-2 1V7.5L1.5 2z" />
+                </svg>
+            }
+            else
+            {
+                <span style="color:black;">▼</span>
+            }
+
+        </button>
+
+        @if (FiltroAbierto == campo)
+        {
+            <div class="border rounded bg-white shadow" style="position:fixed;
+                top:50%;
+                left:50%;
+                transform:translate(-50%, -50%);
+                z-index:2000;
+                width:300px;
+                max-width:90vw;
+                max-height:80vh;
+                background:white;">
+
+                <div class="p-3">
+
+                    <div class="mb-2">
+                        <strong>Filtrar valores</strong>
+                    </div>
+
+                    <input type="text" class="form-control form-control-sm" placeholder="Buscar..."
+                           @bind="BusquedasFiltro[campo]" @bind:event="oninput" />
+
+                </div>
+
+                <div class="border rounded p-2 mx-3" style="height:200px; max-height:40vh; overflow-y:auto;">
+
+                    <label class="d-flex align-items-center gap-2 mb-2 border-bottom pb-2">
+
+                        <input type="checkbox" checked="@(ObtenerValoresFiltrados(campo).Count > 0 &&
+                               ObtenerValoresFiltrados(campo).All(v => SeleccionTemporal[campo].Contains(v)))"
+                               @onchange="(e) => SeleccionarTodos(campo, e)" />
+
+                        <strong>Seleccionar todo</strong>
+
+                    </label>
+
+                    @foreach (var valor in ObtenerValoresFiltrados(campo))
+                    {
+                        <label class="d-flex align-items-center gap-2 mb-2">
+
+                            <input type="checkbox" checked="@SeleccionTemporal[campo].Contains(valor)"
+                                   @onchange="(e) => CambiarSeleccionTemporal(campo, valor, e)" />
+
+                            <span>@(string.IsNullOrEmpty(valor) ? "(Vacío)" : valor)</span>
+
+                        </label>
+                    }
+
+                </div>
+
+                <div class="d-flex gap-2 p-3 border-top mt-3">
+
+                    <button type="button" class="btn btn-success btn-sm flex-fill" @onclick="() => AceptarFiltro(campo)">
+                        Aceptar
+                    </button>
+
+                    <button type="button" class="btn btn-secondary btn-sm flex-fill" @onclick="CancelarFiltro">
+                        Cancelar
+                    </button>
+
+                </div>
+
+            </div>
+        }
+
+    </div>;
+
+    private async Task Buscar()
+    {
+        if (FechaInicial == null || FechaFinal == null)
+        {
+            Mensaje = "Debes seleccionar ambas fechas.";
+            return;
+        }
+
+        if (FechaInicial > FechaFinal)
+        {
+            Mensaje = "La fecha inicial no puede ser mayor que la fecha final.";
+            return;
+        }
+ 
+        Transacciones = await ServicioACH.BuscarPorFechaAsync(
+            FechaInicial.Value,
+            FechaFinal.Value);
+        PaginaActual = 1;
+
+        Mensaje = Transacciones.Count == 0
+            ? "No se encontraron transacciones en el rango de fechas seleccionado."
+            : "";
+    }
+
+    private void Limpiar()
+    {
+        FechaInicial = null;
+        FechaFinal = null;
+        Transacciones.Clear();
+        Mensaje = "";
+        PaginaActual = 1;
+        MostrarTodasLasColumnas = false;
+        MostrarMenuColumnas = false;
+
+        Filtros.Clear();
+        SeleccionTemporal.Clear();
+        BusquedasFiltro.Clear();
+    }
+ 
+    private async Task Exportar()
+    {
+        if (Exportando)
+            return;
+
+        if (FechaInicial == null || FechaFinal == null)
+        {
+            Mensaje = "Selecciona la fecha inicial y final antes de exportar.";
+            return;
+        }
+
+        if (FechaInicial > FechaFinal)
+        {
+            Mensaje = "La fecha inicial no puede ser mayor que la fecha final.";
+            return;
+        }
+
+        var transacciones = TransaccionesFiltradas;
+
+        if (transacciones.Count == 0)
+        {
+            Mensaje = "No hay transacciones para exportar con los filtros seleccionados.";
+            return;
+        }
+
+        Exportando = true;
+        Mensaje = "Generando reporte, por favor espere...";
+
+        try
+        {
+            var archivo = ServicioACH.ExportarExcelAsync(transacciones);
+
+            var nombreArchivo = $"Reporte ACH {FechaInicial.Value:dd-MM-yyyy} al {FechaFinal.Value:dd-MM-yyyy}.xlsx";
+
+            using var stream = new MemoryStream(archivo);
+            using var referencia = new DotNetStreamReference(stream);
+
+            await JS.InvokeVoidAsync("descargarArchivo", nombreArchivo, referencia);
+
+            Mensaje = "El reporte se ha generado correctamente.";
+        }
+        catch (Exception)
+        {
+            Mensaje = "Ocurrió un error al generar el reporte. Inténtalo nuevamente.";
+        }
+        finally
+        {
+            Exportando = false;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        FechaInicial = DateTime.Today.AddDays(-1);
+        FechaFinal = DateTime.Today.AddDays(-1);
+
+        Transacciones = await ServicioACH.BuscarPorFechaAsync(
+            FechaInicial.Value,
+            FechaFinal.Value
+        );
+    }
+}

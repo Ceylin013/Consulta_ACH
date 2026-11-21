@@ -1,13 +1,272 @@
 ﻿@page "/home"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ConsultaACH.Blazor.Servicios
+@inject ServicioTransaccionesACH ServicioACH
+@using ConsultaACH.Blazor.Modelos
+@inject IJSRuntime JS
 
-<PageTitle>Inicio | Consulta ACH</PageTitle>
+<PageTitle>Dashboard | Consulta ACH</PageTitle>
 
 <div class="container-fluid p-4">
-    <h2>Bienvenido a Consulta ACH</h2>
 
-    <p>
-        Has iniciado sesión correctamente.
-    </p>
+    <!-- Encabezado -->
+    <div class="mb-4">
+        <h2>Dashboard</h2>
+        <p class="text-muted">
+            Bienvenido a Consulta ACH. Aquí encontrarás un resumen de las transacciones.
+        </p>
+    </div>
+
+    <!-- Filtro de fechas -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+
+            <h5 class="mb-3">Filtrar transacciones</h5>
+
+            <div class="row g-3 align-items-end">
+
+                <div class="col-md-4">
+                    <label class="form-label">Fecha inicial</label>
+                    <input type="date" class="form-control" @bind="FechaInicial" />
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">Fecha final</label>
+                    <input type="date" class="form-control" @bind="FechaFinal" />
+                </div>
+
+                <div class="col-md-4 d-flex gap-2">
+                    <button class="btn btn-success" @onclick="Consultar">
+                        <i class="bi bi-search me-1"></i>
+                        Consultar
+                    </button>
+
+                    <button class="btn btn-secondary" @onclick="Limpiar">
+                        <i class="bi bi-eraser me-1"></i>
+                        Limpiar
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Indicadores -->
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted">Monto total enviado</h6>
+                            <h3 class="text-success">L @MontoExitoso.ToString("N2")</h3>
+                            <small class="text-muted">Transacciones exitosas</small>
+                        </div>
+                        <i class="bi bi-cash-stack fs-1 text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted">Cantidad de transacciones</h6>
+                            <h3>@CantidadTransacciones</h3>
+                            <small class="text-muted">Total de operaciones</small>
+                        </div>
+                        <i class="bi bi-arrow-left-right fs-1 text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted">Transacciones rechazadas</h6>
+                            <h3 class="text-danger">@CantidadFallidas</h3>
+                            <small class="text-muted">Monto fallido: L @MontoFallido.ToString("N2")</small>
+                        </div>
+                        <i class="bi bi-exclamation-triangle fs-1 text-danger"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Gráfico circular -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <h5 class="mb-3">Estado de las transacciones</h5>
+
+            <div class="d-flex justify-content-center p-3">
+                <div style="width:100%; max-width:450px; height:350px;">
+                    <canvas id="graficoTransacciones"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transacciones recientes -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <h5 class="mb-3">Transacciones recientes</h5>
+
+            <!-- Transacciones recientes -->
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+
+                    <h5 class="mb-3">Transacciones recientes</h5>
+
+                    <div class="table-responsive">
+
+                        <table class="table table-hover table-bordered align-middle">
+
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha y hora</th>
+                                    <th>Tipo de transacción</th>
+                                    <th>Banco</th>
+                                    <th>Monto</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @if (TransaccionesRecientes.Count > 0)
+                                {
+                                    @foreach (var transaccion in TransaccionesRecientes)
+                                    {
+                                        <tr>
+                                            <td>
+                                                @transaccion.FechaHoraProcesamiento?.ToString("dd/MM/yyyy HH:mm:ss")
+                                            </td>
+
+                                            <td>@transaccion.TipoTransaccion</td>
+
+                                            <td>@transaccion.NombreBanco</td>
+
+                                            <td>
+                                                L @transaccion.Monto?.ToString("N2")
+                                            </td>
+
+                                            <td>
+                                                @if (transaccion.DescripcionEstado == "SUCCESS")
+                                                {
+                                                    <span class="badge bg-success">SUCCESS</span>
+                                                }
+                                                else if (transaccion.DescripcionEstado == "FAILED")
+                                                {
+                                                    <span class="badge bg-danger">FAILED</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">
+                                                        @transaccion.DescripcionEstado
+                                                    </span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted p-4">
+                                            No hay transacciones para el período seleccionado.
+                                        </td>
+                                    </tr>
+                                }
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
+@code {
+    private DateTime FechaInicial = DateTime.Today.AddDays(-1);
+    private DateTime FechaFinal = DateTime.Today.AddDays(-1);
+
+    private decimal MontoExitoso;
+    private int CantidadTransacciones;
+    private int CantidadFallidas;
+    private decimal MontoFallido;
+    private int CantidadExitosas;
+    private List<TransaccionACH> TransaccionesRecientes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDashboard();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ActualizarGrafico();
+        }
+    }
+
+    private async Task ActualizarGrafico()
+    {
+        await JS.InvokeVoidAsync(
+            "actualizarGraficoTransacciones",
+            CantidadExitosas,
+            CantidadFallidas);
+    }
+
+    private async Task CargarDashboard()
+    {
+        MontoExitoso = await ServicioACH.ObtenerMontoExitosoAsync(
+            FechaInicial, FechaFinal);
+
+        CantidadTransacciones = await ServicioACH.ObtenerCantidadTransaccionesAsync(
+            FechaInicial, FechaFinal);
+
+        CantidadFallidas = await ServicioACH.ObtenerCantidadFallidasAsync(
+            FechaInicial, FechaFinal);
+
+        MontoFallido = await ServicioACH.ObtenerMontoFallidoAsync(
+            FechaInicial, FechaFinal);
+
+        CantidadExitosas = await ServicioACH.ObtenerCantidadExitosasAsync(
+            FechaInicial, FechaFinal);
+        
+        TransaccionesRecientes = await ServicioACH.ObtenerTransaccionesRecientesAsync(
+        FechaInicial, FechaFinal);
+    }
+
+    private async Task Consultar()
+    {
+        if (FechaInicial > FechaFinal)
+            return;
+
+        await CargarDashboard();
+        await ActualizarGrafico();
+    }
+
+    private async Task Limpiar()
+    {
+        FechaInicial = DateTime.Today.AddDays(-1);
+        FechaFinal = DateTime.Today.AddDays(-1);
+
+        await CargarDashboard();
+        await ActualizarGrafico();
+    }
+}

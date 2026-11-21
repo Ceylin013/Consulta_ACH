@@ -43,7 +43,7 @@ public static class InicializadorDatos
                 "Faltan las credenciales iniciales del administrador.");
         }
 
-        // Comprobar si el administrador ya existe
+        // Comprobacion si el administrador ya existe
         var usuario = await administradorUsuarios
             .FindByNameAsync(nombreUsuario);
 
@@ -69,8 +69,16 @@ public static class InicializadorDatos
                     "No se pudo crear el administrador: " + errores);
             }
 
-            await administradorUsuarios.AddToRoleAsync(
-                usuario, "Administrador");
+            var resultadoRol = await administradorUsuarios.AddToRoleAsync(usuario, "Administrador");
+
+            if (!resultadoRol.Succeeded)
+            {
+                var errores = string.Join(", ",
+                    resultadoRol.Errors.Select(e => e.Description));
+
+                throw new Exception(
+                    "No se pudo asignar el rol de administrador: " + errores);
+            }
         }
     }
 }

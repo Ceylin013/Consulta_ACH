@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Components.Authorization;
 using ConsultaACH.Blazor.Servicios;
+using ConsultaACH.Blazor.Components.Seguridad;
 
 var builder = WebApplication.CreateBuilder(args);
 //conexion db
@@ -23,21 +24,28 @@ builder.Services.AddIdentity<Usuario, IdentityRole>(options =>
         options.Password.RequireLowercase = true;
         options.Password.RequireNonAlphanumeric = true;
 
-        // Bloqueo por intentos fallidos
+        //bloqueo por intentos fallidos
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan =
             TimeSpan.FromMinutes(10);
 
-        // Configuración del usuario email
+        //usuario email
         options.User.RequireUniqueEmail = true;
     })
     .AddEntityFrameworkStores<ContextoBD>()
     .AddDefaultTokenProviders();
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/";
+    options.AccessDeniedPath = "/";
+});
 //estado de autenticacion
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<ServicioUsuarios>();
+builder.Services.AddScoped<ServicioTransaccionesACH>();
 
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, ValidarSesion>();
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -68,24 +76,30 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
-//nuevo inicio sesion
+//endpoint nuevo inicio sesion
 app.MapPost("/login", async (
     HttpContext contexto,
     SignInManager<Usuario> administradorInicioSesion,
+    UserManager<Usuario> administradorUsuarios,
     Microsoft.AspNetCore.Antiforgery.IAntiforgery antiforgery) =>
 {
     await antiforgery.ValidateRequestAsync(contexto);
 
     var formulario = await contexto.Request.ReadFormAsync();
 
-    var usuario = formulario["usuario"].ToString();
+    var nombreUsuario = formulario["usuario"].ToString();
     var contrasena = formulario["contrasena"].ToString();
 
-    Console.WriteLine("------ PRUEBA DE LOGIN ------");
-    Console.WriteLine($"Usuario recibido: {usuario}");
-    Console.WriteLine($"Formulario recibido correctamente");
+    // Buscar usuario
+    var usuario = await administradorUsuarios.FindByNameAsync(nombreUsuario);
 
+    // Comprobacion si existe y está activo
+    if (usuario == null || !usuario.Activo)
+    {
+        return Results.Redirect("/?error=invalido");
+    }
 
+    //Validacion de contraseña y inicio de sesión
     var resultado = await administradorInicioSesion.PasswordSignInAsync(
         usuario,
         contrasena,

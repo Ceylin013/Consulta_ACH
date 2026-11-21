@@ -5,4 +5,6 @@ namespace ConsultaACH.Blazor.Modelos;
 public class Usuario : IdentityUser
 {
     public string? NombreCompleto { get; set; }
+    public bool Activo { get; set; } = true;
+
 }
