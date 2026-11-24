@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Components.Authorization;
 using ConsultaACH.Blazor.Servicios;
 using ConsultaACH.Blazor.Components.Seguridad;
+using Google.Protobuf.WellKnownTypes;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 //conexion db
@@ -38,6 +40,10 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/";
     options.AccessDeniedPath = "/";
+    //inactividad
+    options.ExpireTimeSpan =
+    TimeSpan.FromMinutes(5);
+    options.SlidingExpiration = true;
 });
 //estado de autenticacion
 builder.Services.AddAuthorization();
